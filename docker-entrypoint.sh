@@ -4,14 +4,12 @@ set -e
 
 # 设置默认值
 IPV6_CIDR=${IPV6_CIDR:-"2001:470:1f05:17b::/64"}
-REAL_IPV4=${REAL_IPV4:-"1.2.3.4"}
-RANDOM_IPV6_PORT=${RANDOM_IPV6_PORT:-100}
-REAL_IPV4_PORT=${REAL_IPV4_PORT:-101}
+RANDOM_IPV6_PORT=${RANDOM_IPV6_PORT:-60000}
 BIND=${BIND:-"0.0.0.0"}
 VERBOSE=${VERBOSE:-false}
 
 # 构建命令行参数
-ARGS="-cidr $IPV6_CIDR -real-ipv4 $REAL_IPV4 -random-ipv6-port $RANDOM_IPV6_PORT -real-ipv4-port $REAL_IPV4_PORT -bind $BIND"
+ARGS="-cidr $IPV6_CIDR -random-ipv6-port $RANDOM_IPV6_PORT -bind $BIND"
 
 if [ "$VERBOSE" = "true" ]; then
     ARGS="$ARGS -verbose"

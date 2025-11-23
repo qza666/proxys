@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # IPv6代理服务器一键安装脚本
-# 支持单IPv4和多IPv4配置模式
+# 专注IPv6代理，支持自定义监听端口
 # 必须在交互式终端中运行
 
 # 检查是否为交互式终端
@@ -32,8 +32,7 @@ TUNNEL_NAME="he-ipv6"
 CONFIG_DIR="/etc/he-ipv6"
 CONFIG_FILE="$CONFIG_DIR/$TUNNEL_NAME.conf"
 
-# 多IP配置数组
-declare -a MULTI_IPV4_ARRAY
+PROXY_PORT=60000
 
 # 颜色定义
 RED='\033[0;31m'
@@ -268,129 +267,20 @@ detect_server_ipv4() {
     echo "${all_ips[@]}"
 }
 
-# 配置多IPv4代理
+# 配置IPv6代理端口
 configure_multi_ipv4() {
-    print_message $PURPLE "=== 多IPv4代理配置 ==="
-    
-    # 检测可用IP
-    local available_ips=($(detect_server_ipv4))
-    
-    if [ ${#available_ips[@]} -eq 0 ]; then
-        print_message $RED "错误: 未检测到可用的IPv4地址"
-        return 1
+    print_message $PURPLE "=== 配置IPv6代理端口 ==="
+    echo -n "请输入IPv6代理端口 [默认60000]: "
+    read custom_port
+
+    if [[ -n "$custom_port" && "$custom_port" =~ ^[0-9]+$ && $custom_port -ge 1 && $custom_port -le 65535 ]]; then
+        PROXY_PORT=$custom_port
+    else
+        PROXY_PORT=60000
     fi
-    
-    print_message $GREEN "检测到 ${#available_ips[@]} 个IPv4地址"
-    
-    # 强制使用交互式终端
-    exec < /dev/tty
-    
-    echo -n "是否配置多IPv4代理？(y/N): "
-    read use_multi_ip
-    
-    if [[ ! $use_multi_ip =~ ^[Yy]$ ]]; then
-        # 单IP模式
-        print_message $BLUE "选择单IP模式"
-        while true; do
-            print_message $CYAN "可用的IPv4地址："
-            for i in "${!available_ips[@]}"; do
-                echo "  $((i+1))) ${available_ips[i]}"
-            done
-            echo -n "请选择要使用的IPv4地址 [1]: "
-            read ip_choice
-            ip_choice=${ip_choice:-1}
-            
-            if [[ $ip_choice =~ ^[0-9]+$ ]] && [ $ip_choice -ge 1 ] && [ $ip_choice -le ${#available_ips[@]} ]; then
-                SINGLE_IPV4="${available_ips[$((ip_choice-1))]}"
-                print_message $GREEN "选择的IPv4地址: $SINGLE_IPV4"
-                break
-            else
-                print_message $RED "无效选择，请重新输入"
-            fi
-        done
-        return 0
-    fi
-    
-    # 多IP模式
-    print_message $BLUE "配置多IPv4代理模式"
-    print_message $YELLOW "每个IPv4地址将在端口101上提供代理服务"
-    print_message $YELLOW "使用哪个IP访问代理，就从哪个IP出去"
-    echo ""
-    
-    while true; do
-        print_message $CYAN "可用的IPv4地址："
-        for i in "${!available_ips[@]}"; do
-            local status=""
-            for selected_ip in "${MULTI_IPV4_ARRAY[@]}"; do
-                if [[ "$selected_ip" == "${available_ips[i]}" ]]; then
-                    status=" (已选择)"
-                    break
-                fi
-            done
-            echo "  $((i+1))) ${available_ips[i]}$status"
-        done
-        
-        echo ""
-        print_message $GREEN "已选择的IP地址: ${MULTI_IPV4_ARRAY[@]}"
-        echo ""
-        print_message $CYAN "选项："
-        echo "  1-${#available_ips[@]}) 选择/取消选择IP地址"
-        echo "  d) 完成选择"
-        echo "  q) 退出"
-        
-        echo -n "请输入选择: "
-        read choice
-        
-        case $choice in
-            [1-9]|[1-9][0-9])
-                if [ $choice -ge 1 ] && [ $choice -le ${#available_ips[@]} ]; then
-                    local selected_ip="${available_ips[$((choice-1))]}"
-                    
-                    # 检查是否已选择
-                    local found=false
-                    for i in "${!MULTI_IPV4_ARRAY[@]}"; do
-                        if [[ "${MULTI_IPV4_ARRAY[i]}" == "$selected_ip" ]]; then
-                            # 取消选择
-                            unset MULTI_IPV4_ARRAY[i]
-                            MULTI_IPV4_ARRAY=("${MULTI_IPV4_ARRAY[@]}")  # 重新索引数组
-                            print_message $YELLOW "已取消选择: $selected_ip"
-                            found=true
-                            break
-                        fi
-                    done
-                    
-                    if [ "$found" = false ]; then
-                        # 添加选择
-                        MULTI_IPV4_ARRAY+=("$selected_ip")
-                        print_message $GREEN "已选择: $selected_ip"
-                    fi
-                else
-                    print_message $RED "无效选择"
-                fi
-                ;;
-            d|D)
-                if [ ${#MULTI_IPV4_ARRAY[@]} -eq 0 ]; then
-                    print_message $RED "错误: 至少需要选择一个IP地址"
-                else
-                    print_message $GREEN "完成选择，共选择了 ${#MULTI_IPV4_ARRAY[@]} 个IP地址"
-                    break
-                fi
-                ;;
-            q|Q)
-                print_message $RED "用户取消配置"
-                exit 1
-                ;;
-            *)
-                print_message $RED "无效选择"
-                ;;
-        esac
-        echo ""
-    done
-    
-    print_message $GREEN "多IPv4配置完成："
-    for ip in "${MULTI_IPV4_ARRAY[@]}"; do
-        echo "  - $ip:101"
-    done
+
+    print_message $GREEN "IPv6代理端口已设置为: $PROXY_PORT"
+    return 0
 }
 
 # 检查系统内存
@@ -651,23 +541,7 @@ create_service() {
     local ipv6_cidr="$1"
     
     # 构建命令行参数
-    local cmd_args="-cidr \"$ipv6_cidr\" -random-ipv6-port 100"
-    
-    if [ ${#MULTI_IPV4_ARRAY[@]} -gt 0 ]; then
-        # 多IP模式
-        local multi_ip_str=""
-        for ip in "${MULTI_IPV4_ARRAY[@]}"; do
-            if [ -n "$multi_ip_str" ]; then
-                multi_ip_str="$multi_ip_str,$ip:101"
-            else
-                multi_ip_str="$ip:101"
-            fi
-        done
-        cmd_args="$cmd_args -multi-ipv4 \"$multi_ip_str\""
-    else
-        # 单IP模式
-        cmd_args="$cmd_args -real-ipv4-port 101 -real-ipv4 \"$SINGLE_IPV4\""
-    fi
+    local cmd_args="-cidr \"$ipv6_cidr\" -random-ipv6-port $PROXY_PORT"
     
     cat > /etc/systemd/system/ipv6proxy.service << EOF
 [Unit]
@@ -696,19 +570,9 @@ show_completion_info() {
     print_message $GREEN "🎉 安装完成！"
     echo ""
     print_message $CYAN "IPv6代理服务配置详情："
-    echo "- 随机IPv6代理端口：100"
+    echo "- 随机IPv6代理端口：$PROXY_PORT"
     echo "- IPv6 CIDR：$ipv6_cidr"
     echo ""
-
-    if [ ${#MULTI_IPV4_ARRAY[@]} -gt 0 ]; then
-        print_message $CYAN "多IPv4代理配置："
-        for ip in "${MULTI_IPV4_ARRAY[@]}"; do
-            echo "- IPv4代理: http://$ip:101 (出口IP: $ip)"
-        done
-    else
-        print_message $CYAN "单IPv4代理配置："
-        echo "- IPv4代理: http://$SINGLE_IPV4:101 (出口IP: $SINGLE_IPV4)"
-    fi
 
     echo ""
     print_message $PURPLE "管理命令："
@@ -733,7 +597,7 @@ show_completion_info() {
 # 主函数
 main() {
     print_message $PURPLE "🚀 IPv6代理服务器一键安装脚本"
-    print_message $PURPLE "支持单IPv4和多IPv4配置模式"
+    print_message $PURPLE "专注IPv6代理，可自定义端口"
     echo ""
     
     # 强制交互模式
@@ -769,8 +633,8 @@ main() {
     check_system_memory
     optimize_system_config
     
-    # 配置多IPv4代理
-    print_message $PURPLE "=== 步骤6: 配置IPv4代理 ==="
+    # 配置IPv6代理端口
+    print_message $PURPLE "=== 步骤6: 设置IPv6代理端口 ==="
     configure_multi_ipv4
     
     # 配置HE IPv6隧道
@@ -818,27 +682,11 @@ main() {
             print_message $GREEN "✅ 服务已成功启动并设置为开机自启！"
             echo ""
             print_message $CYAN "🌐 代理地址："
-            echo "  随机IPv6代理: http://任意IP:100"
-            
-            if [ ${#MULTI_IPV4_ARRAY[@]} -gt 0 ]; then
-                for ip in "${MULTI_IPV4_ARRAY[@]}"; do
-                    echo "  IPv4代理($ip): http://$ip:101"
-                done
-            else
-                echo "  IPv4代理: http://$SINGLE_IPV4:101"
-            fi
-            
+            echo "  随机IPv6代理: http://任意IP:$PROXY_PORT"
+
             echo ""
             print_message $CYAN "🧪 测试代理："
-            echo "  curl --proxy http://任意IP:100 http://ipv6.icanhazip.com"
-            
-            if [ ${#MULTI_IPV4_ARRAY[@]} -gt 0 ]; then
-                for ip in "${MULTI_IPV4_ARRAY[@]}"; do
-                    echo "  curl --proxy http://$ip:101 http://icanhazip.com  # 出口IP: $ip"
-                done
-            else
-                echo "  curl --proxy http://$SINGLE_IPV4:101 http://icanhazip.com"
-            fi
+            echo "  curl --proxy http://任意IP:$PROXY_PORT http://ipv6.icanhazip.com"
         else
             print_message $RED "❌ 服务启动失败，请检查日志："
             echo "journalctl -u ipv6proxy -n 50 --no-pager"

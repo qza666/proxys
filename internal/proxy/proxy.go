@@ -84,11 +84,7 @@ func getIPv6Address(domain string) (string, error) {
 	return "", fmt.Errorf("no IPv6 address found for %s", domain)
 }
 
-func NewProxyServer(cfg *config.Config, useRandomIPv6 bool) *goproxy.ProxyHttpServer {
-	return NewProxyServerWithSpecificIP(cfg, useRandomIPv6, cfg.RealIPv4)
-}
-
-func NewProxyServerWithSpecificIP(cfg *config.Config, useRandomIPv6 bool, specificIPv4 string) *goproxy.ProxyHttpServer {
+func NewProxyServer(cfg *config.Config) *goproxy.ProxyHttpServer {
 	proxy := goproxy.NewProxyHttpServer()
 	proxy.Verbose = cfg.Verbose
 
@@ -110,32 +106,23 @@ func NewProxyServerWithSpecificIP(cfg *config.Config, useRandomIPv6 bool, specif
 			}
 
 			host := req.URL.Hostname()
-			var outgoingIP net.IP
-			var targetIP string
-			var err error
-
-			if useRandomIPv6 {
-				targetIP, err = getIPv6Address(host)
-				if err != nil {
-					log.Printf("Get IPv6 address error for %s: %v", host, err)
-					client.Write([]byte(fmt.Sprintf("%s 500 Internal Server Error\r\n\r\n", req.Proto)))
-					client.Close()
-					return
-				}
-
-				outgoingIP, err = generateRandomIPv6(cfg.CIDR)
-				if err != nil {
-					log.Printf("Generate random IPv6 error for CIDR %s: %v", cfg.CIDR, err)
-					client.Write([]byte(fmt.Sprintf("%s 500 Internal Server Error\r\n\r\n", req.Proto)))
-					client.Close()
-					return
-				}
-
-				log.Printf("CONNECT: %s [%s] from %s (CIDR: %s)", req.URL.Host, targetIP, outgoingIP.String(), cfg.CIDR)
-			} else {
-				outgoingIP = net.ParseIP(specificIPv4)
-				log.Printf("CONNECT: %s from IPv4 %s", req.URL.Host, outgoingIP.String())
+			targetIP, err := getIPv6Address(host)
+			if err != nil {
+				log.Printf("Get IPv6 address error for %s: %v", host, err)
+				client.Write([]byte(fmt.Sprintf("%s 500 Internal Server Error\r\n\r\n", req.Proto)))
+				client.Close()
+				return
 			}
+
+			outgoingIP, err := generateRandomIPv6(cfg.CIDR)
+			if err != nil {
+				log.Printf("Generate random IPv6 error for CIDR %s: %v", cfg.CIDR, err)
+				client.Write([]byte(fmt.Sprintf("%s 500 Internal Server Error\r\n\r\n", req.Proto)))
+				client.Close()
+				return
+			}
+
+			log.Printf("CONNECT: %s [%s] from %s (CIDR: %s)", req.URL.Host, targetIP, outgoingIP.String(), cfg.CIDR)
 
 			dialer := &net.Dialer{
 				LocalAddr: &net.TCPAddr{IP: outgoingIP, Port: 0},
@@ -160,28 +147,19 @@ func NewProxyServerWithSpecificIP(cfg *config.Config, useRandomIPv6 bool, specif
 	proxy.OnRequest().DoFunc(
 		func(req *http.Request, ctx *goproxy.ProxyCtx) (*http.Request, *http.Response) {
 			host := req.URL.Hostname()
-			var outgoingIP net.IP
-			var targetIP string
-			var err error
-
-			if useRandomIPv6 {
-				targetIP, err = getIPv6Address(host)
-				if err != nil {
-					log.Printf("Get IPv6 address error for %s: %v", host, err)
-					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadGateway, "Failed to resolve host")
-				}
-
-				outgoingIP, err = generateRandomIPv6(cfg.CIDR)
-				if err != nil {
-					log.Printf("Generate random IPv6 error for CIDR %s: %v", cfg.CIDR, err)
-					return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to generate IPv6 address")
-				}
-
-				log.Printf("HTTP: %s [%s] from %s (CIDR: %s)", req.URL.Host, targetIP, outgoingIP.String(), cfg.CIDR)
-			} else {
-				outgoingIP = net.ParseIP(specificIPv4)
-				log.Printf("HTTP: %s from IPv4 %s", req.URL.Host, outgoingIP.String())
+			targetIP, err := getIPv6Address(host)
+			if err != nil {
+				log.Printf("Get IPv6 address error for %s: %v", host, err)
+				return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusBadGateway, "Failed to resolve host")
 			}
+
+			outgoingIP, err := generateRandomIPv6(cfg.CIDR)
+			if err != nil {
+				log.Printf("Generate random IPv6 error for CIDR %s: %v", cfg.CIDR, err)
+				return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to generate IPv6 address")
+			}
+
+			log.Printf("HTTP: %s [%s] from %s (CIDR: %s)", req.URL.Host, targetIP, outgoingIP.String(), cfg.CIDR)
 
 			dialer := &net.Dialer{
 				LocalAddr: &net.TCPAddr{IP: outgoingIP, Port: 0},

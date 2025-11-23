@@ -4,9 +4,8 @@
 
 ## 🌟 核心特性
 
-### 🎯 双模式代理
-- **随机IPv6代理**: 从指定CIDR范围生成随机IPv6地址进行代理
-- **多IPv4代理**: 支持多个IPv4地址，每个IP独立提供代理服务
+### 🎯 IPv6代理
+- **随机IPv6代理**: 从指定CIDR范围生成随机IPv6地址进行代理，默认监听端口为`60000`，可自定义
 
 ### 🔀 智能路由
 - **单IP模式**: 传统的单一出口IP配置
@@ -76,18 +75,13 @@ sudo ./install.sh
 2. 注册账号并创建隧道
 3. 在隧道详情页面找到所需信息
 
-### IPv4代理模式
+### 路由提示
 
-#### 单IP模式
-- 使用一个IPv4地址提供代理服务
-- 所有请求都从同一个IP出去
-- 适合简单的代理需求
+如果HE分配的前缀是`2600:70ff:a821::/48`，需要确保本地路由指向回环接口：
 
-#### 多IP模式
-- 支持多个IPv4地址同时提供代理服务
-- 每个IP在端口101上独立运行
-- 使用哪个IP访问，就从哪个IP出去
-- 适合需要多个出口IP的场景
+```bash
+ip -6 route replace local 2600:70ff:a821::/48 dev lo
+```
 
 ## 🎮 使用方法
 
@@ -118,37 +112,18 @@ sudo journalctl -u ipv6proxy -f
 
 ### 代理使用
 
-#### 随机IPv6代理 (端口100)
+#### 随机IPv6代理（默认端口60000，可自定义）
 
 \`\`\`bash
-# 设置环境变量
-export http_proxy=http://服务器IP:100
-export https_proxy=http://服务器IP:100
+# 设置环境变量（默认端口60000，可在启动时通过参数自定义）
+export http_proxy=http://服务器IP:60000
+export https_proxy=http://服务器IP:60000
 
 # 直接使用curl
-curl --proxy http://服务器IP:100 http://ipv6.google.com
+curl --proxy http://服务器IP:60000 http://ipv6.google.com
 
 # 测试IPv6连接
-curl --proxy http://服务器IP:100 http://ipv6.icanhazip.com
-\`\`\`
-
-#### IPv4代理 (端口101)
-
-**单IP模式:**
-\`\`\`bash
-# 使用单一IPv4出口
-curl --proxy http://服务器IP:101 http://icanhazip.com
-\`\`\`
-
-**多IP模式:**
-\`\`\`bash
-# 从IP1出去 (假设服务器有IP: 1.2.3.4)
-curl --proxy http://1.2.3.4:101 http://icanhazip.com
-# 返回: 1.2.3.4
-
-# 从IP2出去 (假设服务器有IP: 5.6.7.8)
-curl --proxy http://5.6.7.8:101 http://icanhazip.com  
-# 返回: 5.6.7.8
+curl --proxy http://服务器IP:60000 http://ipv6.icanhazip.com
 \`\`\`
 
 #### 带认证的代理
@@ -157,11 +132,11 @@ curl --proxy http://5.6.7.8:101 http://icanhazip.com
 
 \`\`\`bash
 # HTTP代理
-export http_proxy=http://用户名:密码@服务器IP:100
-export https_proxy=http://用户名:密码@服务器IP:100
+export http_proxy=http://用户名:密码@服务器IP:60000
+export https_proxy=http://用户名:密码@服务器IP:60000
 
 # 直接使用
-curl --proxy http://用户名:密码@服务器IP:100 http://example.com
+curl --proxy http://用户名:密码@服务器IP:60000 http://example.com
 \`\`\`
 
 ### 浏览器配置
@@ -169,12 +144,12 @@ curl --proxy http://用户名:密码@服务器IP:100 http://example.com
 #### Chrome/Edge
 1. 设置 → 高级 → 系统 → 打开代理设置
 2. 手动代理配置
-3. HTTP代理: `服务器IP:100` (IPv6) 或 `服务器IP:101` (IPv4)
+3. HTTP代理: `服务器IP:60000`
 
 #### Firefox
 1. 设置 → 网络设置 → 设置
 2. 手动代理配置
-3. HTTP代理: `服务器IP:100` 端口: `100`
+3. HTTP代理: `服务器IP:60000` 端口: `60000`
 
 ## 🔧 高级配置
 
@@ -188,10 +163,7 @@ go run cmd/ipv6proxy/main.go -h
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
 | `-cidr` | 必填 | IPv6 CIDR范围 |
-| `-real-ipv4` | 必填 | 服务器真实IPv4地址 |
-| `-multi-ipv4` | "" | 多IPv4配置 (格式: ip1:port1,ip2:port2) |
-| `-random-ipv6-port` | 100 | 随机IPv6代理端口 |
-| `-real-ipv4-port` | 101 | 真实IPv4代理端口 |
+| `-random-ipv6-port` | 60000 | 随机IPv6代理端口（可自定义） |
 | `-bind` | 0.0.0.0 | 绑定地址 |
 | `-username` | "" | Basic认证用户名 |
 | `-password` | "" | Basic认证密码 |
@@ -200,20 +172,15 @@ go run cmd/ipv6proxy/main.go -h
 ### 手动运行示例
 
 \`\`\`bash
-# 单IP模式
+# 指定CIDR和自定义端口（默认60000）
 go run cmd/ipv6proxy/main.go \
   -cidr "2001:470:1f05:17b::/64" \
-  -real-ipv4 "1.2.3.4"
-
-# 多IP模式
-go run cmd/ipv6proxy/main.go \
-  -cidr "2001:470:1f05:17b::/64" \
-  -multi-ipv4 "1.2.3.4:101,5.6.7.8:101"
+  -random-ipv6-port 60000
 
 # 带认证
 go run cmd/ipv6proxy/main.go \
   -cidr "2001:470:1f05:17b::/64" \
-  -real-ipv4 "1.2.3.4" \
+  -random-ipv6-port 61000 \
   -username "user" \
   -password "pass"
 \`\`\`
@@ -227,10 +194,7 @@ go run cmd/ipv6proxy/main.go \
 ping6 -c 3 2001:470:1f04:17b::1
 
 # 测试IPv6代理
-curl --proxy http://服务器IP:100 http://ipv6.icanhazip.com
-
-# 测试IPv4代理
-curl --proxy http://服务器IP:101 http://icanhazip.com
+curl --proxy http://服务器IP:60000 http://ipv6.icanhazip.com
 
 # 测试DNS解析
 nslookup -type=AAAA google.com
@@ -240,10 +204,10 @@ nslookup -type=AAAA google.com
 
 \`\`\`bash
 # 下载速度测试
-curl --proxy http://服务器IP:100 -o /dev/null -s -w "%{speed_download}\n" http://speedtest.tele2.net/100MB.zip
+curl --proxy http://服务器IP:60000 -o /dev/null -s -w "%{speed_download}\n" http://speedtest.tele2.net/100MB.zip
 
 # 延迟测试
-curl --proxy http://服务器IP:100 -o /dev/null -s -w "%{time_total}\n" http://google.com
+curl --proxy http://服务器IP:60000 -o /dev/null -s -w "%{time_total}\n" http://google.com
 \`\`\`
 
 ### 日志分析
@@ -274,9 +238,8 @@ sudo systemctl start ipv6proxy
 
 #### 2. 端口被占用
 \`\`\`bash
-# 检查端口占用
-sudo netstat -tlnp | grep :100
-sudo netstat -tlnp | grep :101
+# 检查端口占用（默认端口60000）
+sudo netstat -tlnp | grep :60000
 
 # 杀死占用进程
 sudo kill -9 <PID>
@@ -356,8 +319,8 @@ echo '* hard nofile 65535' >> /etc/security/limits.conf
 ### 系统监控
 
 \`\`\`bash
-# 查看连接数
-ss -tuln | grep -E ':(100|101)'
+# 查看连接数（根据实际自定义端口调整）
+ss -tuln | grep :60000
 
 # 查看内存使用
 ps aux | grep ipv6proxy
@@ -404,9 +367,8 @@ chmod +x /etc/cron.daily/ipv6proxy-maintenance
 ### 防火墙配置
 
 \`\`\`bash
-# 允许代理端口
-sudo ufw allow 100/tcp
-sudo ufw allow 101/tcp
+# 允许代理端口（根据实际端口调整，默认60000）
+sudo ufw allow 60000/tcp
 
 # 允许SSH
 sudo ufw allow 22/tcp
@@ -418,23 +380,22 @@ sudo ufw enable
 ### 访问控制
 
 \`\`\`bash
-# 限制特定IP访问
-iptables -A INPUT -p tcp --dport 100 -s 允许的IP -j ACCEPT
-iptables -A INPUT -p tcp --dport 100 -j DROP
+# 限制特定IP访问（根据实际端口调整）
+iptables -A INPUT -p tcp --dport 60000 -s 允许的IP -j ACCEPT
+iptables -A INPUT -p tcp --dport 60000 -j DROP
 \`\`\`
 
 ## 📝 更新日志
 
+### v1.2.0
+- 移除HTTP 101 IPv4代理服务，专注IPv6代理
+- 默认代理端口调整为60000，支持自定义
+- 路由配置改为使用`ip -6 route replace local`以适配HE前缀
+
 ### v1.0.0
 - 初始版本发布
 - 支持随机IPv6代理
-- 支持单IPv4代理
 - HE IPv6隧道配置
-
-### v1.1.0
-- 新增多IPv4代理支持
-- 改进安装脚本
-- 优化系统配置
 - 增强错误处理
 
 ### v1.2.0
