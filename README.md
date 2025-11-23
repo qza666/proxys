@@ -37,13 +37,8 @@
 ### 快速安装
 
 \`\`\`bash
-# 下载安装脚本
-wget https://raw.githubusercontent.com/qza1314526-debug/v6s/main/install.sh
-
-# 添加执行权限
+wget https://raw.githubusercontent.com/qza666/proxys/main/install.sh
 chmod +x install.sh
-
-# 运行安装脚本
 sudo ./install.sh
 \`\`\`
 
