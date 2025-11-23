@@ -9,9 +9,7 @@ services:
     network_mode: host
     environment:
       - IPV6_CIDR=${IPV6_CIDR:-2001:470:1f05:17b::/64}
-      - REAL_IPV4=${REAL_IPV4:-1.2.3.4}
-      - RANDOM_IPV6_PORT=${RANDOM_IPV6_PORT:-100}
-      - REAL_IPV4_PORT=${REAL_IPV4_PORT:-101}
+      - RANDOM_IPV6_PORT=${RANDOM_IPV6_PORT:-60000}
       - PROXY_USERNAME=${PROXY_USERNAME:-}
       - PROXY_PASSWORD=${PROXY_PASSWORD:-}
       - VERBOSE=${VERBOSE:-false}
@@ -19,7 +17,7 @@ services:
       - ./logs:/var/log/ipv6proxy
       - /etc/localtime:/etc/localtime:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${REAL_IPV4_PORT:-101}/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${RANDOM_IPV6_PORT:-60000}/health"]
       interval: 30s
       timeout: 10s
       retries: 3

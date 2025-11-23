@@ -12,15 +12,12 @@ func AddV6Route(cidr string) {
 		log.Fatal("You must run this program as root")
 	}
 
-	delCmd := exec.Command("ip", "route", "del", "local", cidr, "dev", "lo")
-	delCmd.Run()
-
-	addCmd := exec.Command("ip", "route", "add", "local", cidr, "dev", "lo")
-	if err := addCmd.Run(); err != nil {
-		log.Fatalf("Failed to add route: %v", err)
-	} else {
-		log.Printf("Added route %s dev lo", cidr)
+	replaceCmd := exec.Command("ip", "-6", "route", "replace", "local", cidr, "dev", "lo")
+	if err := replaceCmd.Run(); err != nil {
+		log.Fatalf("Failed to replace route: %v", err)
 	}
+
+	log.Printf("Configured local route %s dev lo", cidr)
 }
 
 func SetV6Forwarding() {
